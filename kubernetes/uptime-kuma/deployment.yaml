@@ -1,0 +1,52 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: uptime-kuma
+  namespace: uptime-kuma
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: uptime-kuma
+  template:
+    metadata:
+      labels:
+        app: uptime-kuma
+    spec:
+      containers:
+        - name: uptime-kuma
+          image: louislam/uptime-kuma:2.5.9
+          ports:
+            - containerPort: 3001
+          startupProbe:            # NEW: allow up to 150 seconds to start
+            httpGet:
+              path: /
+              port: 3001
+            periodSeconds: 5
+            failureThreshold: 30
+          readinessProbe:          # NEW: only send traffic when this passes
+            httpGet:
+              path: /
+              port: 3001
+            periodSeconds: 10
+          livenessProbe:           # NEW: restart after 3 failures in a row
+            httpGet:
+              path: /
+              port: 3001
+            periodSeconds: 30
+            failureThreshold: 3
+          resources:               # NEW: reserve some, cap memory
+            requests:
+              cpu: 50m
+              memory: 128Mi
+            limits:
+              memory: 512Mi
+          volumeMounts:
+            - name: data
+              mountPath: /app/data
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: uptime-kuma-data

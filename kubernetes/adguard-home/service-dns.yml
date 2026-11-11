@@ -1,0 +1,18 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: adguard-home-dns
+  namespace: adguard-home
+spec:
+  type: LoadBalancer
+  selector:
+    app: adguard-home
+  ports:
+    - name: dns-udp
+      port: 53
+      targetPort: dns-udp   # refers to the port's name in the Deployment
+      protocol: UDP
+    - name: dns-tcp
+      port: 53
+      targetPort: dns-tcp
+      protocol: TCP

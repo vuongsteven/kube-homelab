@@ -1,0 +1,52 @@
+#cloud-config
+hostname: ${hostname}
+timezone: ${timezone}
+
+# This replaces Proxmox's own user setup, so the user and key are defined here
+users:
+  - name: ${username}
+    groups: [sudo]
+    shell: /bin/bash
+    sudo: "ALL=(ALL) NOPASSWD:ALL"
+    lock_passwd: true
+    ssh_authorized_keys:
+      - ${ssh_public_key}
+
+ssh_pwauth: false
+
+package_update: true
+package_upgrade: true
+packages:
+  - qemu-guest-agent
+  - build-essential
+  - ca-certificates
+  - curl
+  - git
+  - jq
+  - tmux
+  - unzip
+
+write_files:
+  - path: /etc/profile.d/mise.sh
+    permissions: "0644"
+    content: |
+      # Put each user's mise-managed tools on PATH in login shells
+      if [ -x "$HOME/.local/bin/mise" ]; then
+        eval "$("$HOME/.local/bin/mise" activate bash)"
+      fi
+
+runcmd:
+  - systemctl enable --now qemu-guest-agent
+  # Docker Engine, from Docker's own package repository
+  - install -m 0755 -d /etc/apt/keyrings
+  - curl -fsSL https://download.docker.com/linux/ubuntu/gpg -o /etc/apt/keyrings/docker.asc
+  - chmod a+r /etc/apt/keyrings/docker.asc
+  - 'echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/ubuntu $(. /etc/os-release && echo $VERSION_CODENAME) stable" > /etc/apt/sources.list.d/docker.list'
+  - apt-get update
+  - apt-get install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
+  - usermod -aG docker ${username}
+  # mise, then Node 26, pnpm, uv and the GitHub CLI for the login user
+  - [su, "-", "${username}", "-c", "curl -fsSL https://mise.run | sh"]
+  - [su, "-", "${username}", "-c", "MISE_YES=1 ~/.local/bin/mise use --global node@26 pnpm uv github-cli"]
+
+final_message: "dev-vm finished first boot in $UPTIME seconds"

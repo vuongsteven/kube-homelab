@@ -1,0 +1,15 @@
+# Copy to terraform.tfvars (gitignored) and replace the example values.
+# The API token is never stored here. Set it in your shell instead:
+#   read -s "TF_VAR_proxmox_api_token?Proxmox token: " && export TF_VAR_proxmox_api_token
+
+proxmox_endpoint = "https://192.168.1.10:8006/"
+ip_address       = "192.168.1.150/24"
+gateway          = "192.168.1.1"
+home_network     = "192.168.1.0/24"
+timezone         = "America/Vancouver"
+
+# Optional, shown with their defaults
+# node_name = "pve01"
+# cpu_cores = 4
+# memory_mb = 6144
+# disk_gb   = 64

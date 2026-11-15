@@ -2,3 +2,8 @@ kubeconfig
 *.kubeconfig
 k3s-lab.yaml
 .DS_Store
+.terraform/
+*.tfstate
+*.tfstate.*
+*.tfvars
+crash.log

@@ -1,0 +1,82 @@
+site_name: kube-homelab
+site_description: A Kubernetes home lab on Proxmox, built one lesson at a time.
+site_url: https://vuongsteven.github.io/kube-homelab/
+repo_url: https://github.com/vuongsteven/kube-homelab
+repo_name: vuongsteven/kube-homelab
+edit_uri: edit/main/docs/
+
+# Every Markdown file under docs/ becomes a page. There is deliberately no
+# `nav:` here: the sidebar is built from the folder structure, so a new lesson
+# folder shows up on its own. See "Adding a lesson" in README.md.
+docs_dir: docs
+
+hooks:
+  - hooks/site.py
+
+extra:
+  # Sidebar and home page titles for top-level folders under docs/.
+  # A folder that isn't listed gets a title made from its name
+  # ("side-lessons" becomes "Side lessons").
+  section_titles:
+    learning: Lessons
+    side-lessons: Side lessons
+  # Optional one-line blurb shown under each section on the home page.
+  section_blurbs:
+    learning: The main path. Each lesson deploys something useful on the cluster and explains the concepts behind it.
+    side-lessons: Infrastructure around the cluster, done whenever it's useful.
+
+theme:
+  name: material
+  icon:
+    logo: material/kubernetes
+    repo: fontawesome/brands/github
+  palette:
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      primary: indigo
+      accent: indigo
+      toggle:
+        icon: material/weather-night
+        name: Switch to dark mode
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      primary: indigo
+      accent: indigo
+      toggle:
+        icon: material/weather-sunny
+        name: Switch to light mode
+  features:
+    - navigation.indexes      # a folder's README.md is the section's page
+    - navigation.sections
+    - navigation.footer       # previous / next links at the bottom of each page
+    - navigation.top
+    - navigation.tracking
+    - toc.follow
+    - search.suggest
+    - search.highlight
+    - content.code.copy
+    - content.action.edit
+
+plugins:
+  - search
+
+markdown_extensions:
+  - admonition
+  - attr_list
+  - md_in_html
+  - tables
+  - toc:
+      permalink: true
+  - pymdownx.details
+  - pymdownx.highlight:
+      anchor_linenums: true
+  - pymdownx.inlinehilite
+  - pymdownx.superfences:
+      custom_fences:
+        - name: mermaid
+          class: mermaid
+          format: !!python/name:pymdownx.superfences.fence_code_format
+  - pymdownx.tabbed:
+      alternate_style: true
+  - pymdownx.tasklist:
+      custom_checkbox: true

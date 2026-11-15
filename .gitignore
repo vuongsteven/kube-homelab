@@ -7,3 +7,5 @@ k3s-lab.yaml
 *.tfstate.*
 *.tfvars
 crash.log
+site/
+__pycache__/

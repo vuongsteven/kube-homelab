@@ -12,8 +12,8 @@ The code is in [`terraform/dev-vm/`](../../../terraform/dev-vm/).
 | 2 | First VM from code | Done |
 | 3 | Variables, outputs and cloud-init | Done |
 | 4 | Network isolation | Done |
-| 5 | Claude Code and Remote Control | In progress |
-| 6 | Tailscale | Not started |
+| 5 | Claude Code and Remote Control | Set up. A first project run from the phone is still to confirm. |
+| 6 | Tailscale | Done |
 | 7 | Rebuild drill and backups | Not started |
 
 ## What gets built
@@ -26,6 +26,7 @@ The code is in [`terraform/dev-vm/`](../../../terraform/dev-vm/).
 | `firewall.tf` | `proxmox_virtual_environment_firewall_options.dev` | Turns on the VM's firewall: incoming dropped, outgoing allowed |
 | `firewall.tf` | `proxmox_virtual_environment_firewall_rules.dev` | SSH and ping in from home, no new connections out to private networks |
 | `templates/user-data.yaml.tftpl` | | First-boot setup: user, packages, Docker, mise, Node 26, pnpm, uv, GitHub CLI |
+| [`tailscale/policy.hujson`](../../../tailscale/policy.hujson) | | Reference copy of the tailnet access policy. The live copy is in the Tailscale admin console. |
 
 ## How it fits together
 
@@ -68,24 +69,35 @@ Terraform talks to Proxmox two ways. Most work goes through the API with a scope
 flowchart LR
   phone["Phone<br/>any network"]
   anthropic["Anthropic"]
+  tsnet["Tailscale<br/>encrypted tunnel"]
   internet["Internet<br/>GitHub, npm, Docker Hub"]
 
   subgraph home["Home network"]
     mac["Laptop"]
     lan["Proxmox, router,<br/>k3s, other devices"]
     subgraph pve["Proxmox firewall"]
-      vm["dev-vm<br/>claude remote-control"]
+      vm["dev-vm<br/>claude remote-control<br/>tailscaled"]
     end
   end
 
-  phone -->|"HTTPS"| anthropic
+  phone -->|"Claude app"| anthropic
   vm -->|"HTTPS, outbound only"| anthropic
+  phone -->|"SSH and previews"| tsnet
+  tsnet -->|"allowed by policy"| vm
+  vm -.->|"no grant: blocked by policy"| tsnet
   vm --> internet
   mac -->|"SSH and ping allowed in"| vm
-  vm -.->|"blocked: no new connections"| lan
+  vm -.->|"blocked by Proxmox firewall"| lan
 ```
 
-The phone and the VM never connect to each other. Both connect out to Anthropic, signed in to the same Claude account, so no ports are open on the router and it works from any network.
+There are two separate paths from the phone. Claude Code goes through Anthropic, with both sides connecting out, so no ports are open on the router. The terminal and previews go through Tailscale's encrypted tunnel, which also connects outward.
+
+Each path out of the VM has its own guard, because neither can see the other's traffic:
+
+| Path | Enforced by |
+|---|---|
+| VM to the home network, directly | Proxmox firewall |
+| VM to your devices, through the tunnel | Tailscale policy. Proxmox only sees encrypted UDP to the internet. |
 
 ## One-time Proxmox setup
 
@@ -190,6 +202,8 @@ terraform apply
 | Change the cloud-init template | Only takes effect after a replacement | cloud-init runs once per VM |
 | From the VM, reach the router and k3s | Refused | The VM can't start connections to the home network |
 | SSH from the laptop to the VM | Works | The firewall is stateful, so replies to allowed connections get out |
+| SSH from the phone over cellular, through Tailscale | Works with no SSH key | Tailscale SSH trusts the tailnet identity, and the policy allows it |
+| Open a web server on port 8080 from the phone over cellular | The page loads | Previews work from anywhere, if the server listens on all addresses |
 
 ## Claude Code and Remote Control
 
@@ -241,6 +255,34 @@ Then open **Code** in the Claude app and choose `dev-vm`. Turn on **Require trus
 
 None of Part 5 is in cloud-init yet, so a rebuilt VM needs these steps again. Part 7 covers which can be automated. The logins can't be, because they're secrets.
 
+## Tailscale
+
+**Write the access policy before adding the VM.** Tailscale's default policy lets every device reach every other one, and Proxmox's firewall can't see inside the tunnel. With the default, the VM could reach your laptop and phone, and through any future subnet router, the whole home network.
+
+In the admin console, open **Access controls > JSON editor** and replace the policy with [`tailscale/policy.hujson`](../../../tailscale/policy.hujson). It grants your devices access to each other and to `tag:dev`, and grants `tag:dev` nothing. On the **Policies** page, `tag:dev` should appear only under destinations, never under sources.
+
+Then, on the VM:
+
+```bash
+curl -fsSL https://tailscale.com/install.sh | sh
+sudo tailscale up --ssh --advertise-tags=tag:dev --hostname=dev-vm --accept-dns=false
+tailscale status
+```
+
+| Flag | Why |
+|---|---|
+| `--ssh` | Tailscale SSH, controlled by the policy's `ssh` rules, so the phone needs no SSH key |
+| `--advertise-tags=tag:dev` | Joins as a tagged device, so the `tag:dev` rules apply and it isn't treated as one of your own devices |
+| `--hostname=dev-vm` | The MagicDNS name, used as `dev-vm` from your devices |
+| `--accept-dns=false` | Keeps the VM on the public DNS servers it was built with |
+
+**From the phone,** with the Tailscale app connected:
+
+- **Terminal:** an SSH app pointed at `dev-vm`, user `dev`, no password.
+- **Previews:** `http://dev-vm:<port>`. Dev servers such as Vite and Next.js listen only on `localhost` by default, so start them with `--host` or `--hostname 0.0.0.0`.
+
+`tailscale status` shows `direct` or `relay` for each peer. The VM can't reach home addresses, so at home a relay through Tailscale's servers is normal.
+
 ## Troubleshooting
 
 | Symptom | Cause and fix |
@@ -254,6 +296,8 @@ None of Part 5 is in cloud-init yet, so a rebuilt VM needs these steps again. Pa
 | A failed `-/+` left no VM | Replacement destroys first. Fix the error and run `apply` again. |
 | `REMOTE HOST IDENTIFICATION HAS CHANGED` after a rebuild | Expected, because the new VM has new host keys. Run `ssh-keygen -R <ip>`. |
 | `gh auth login --with-token` seems frozen | It's waiting for the token. Paste it, press Enter, then Ctrl+D. |
+| A dev server works on the VM but not from the phone | It's listening on `localhost` only. Start it with `--host`, or bind to `0.0.0.0`. |
+| Can't find where to preview Tailscale rules | The admin console has changed. On **Access controls > Policies**, check that `tag:dev` never appears as a source. |
 
 ## Security notes
 
@@ -263,8 +307,8 @@ None of Part 5 is in cloud-init yet, so a rebuilt VM needs these steps again. Pa
 - **`dev` has passwordless `sudo` and is in the `docker` group.** Both amount to root on the VM, which is acceptable because the VM is isolated and disposable. Keep Claude Code in the permission mode that asks first.
 - **Whoever controls the Claude account controls the VM.** Remote Control transcripts are stored by Anthropic while connected.
 - **Root SSH to Proxmox stays on the laptop.** The dev VM never gets that key.
+- **The tunnel needs its own rules.** The Tailscale policy, not the Proxmox firewall, is what stops the VM reaching your devices through Tailscale. Review it whenever you change the tailnet, especially before adding a subnet router.
 
 ## Next
 
-- **Part 6:** Tailscale on the VM and phone, for a terminal and for previewing web apps from anywhere, without opening ports.
-- **Part 7:** A Proxmox backup schedule, then destroy and rebuild the VM to see exactly what a rebuild restores.
+- **Part 7:** A Proxmox backup schedule, then destroy and rebuild the VM to see exactly what a rebuild restores, and which steps, such as installing Claude Code and Tailscale, can move into cloud-init. Signing in to Claude, GitHub and Tailscale stays manual, because those are secrets.

@@ -1,0 +1,27 @@
+// Tailnet access policy. A reference copy: the live policy is edited in
+// the Tailscale admin console under Access controls > JSON editor.
+// Rules are deny-by-default and stateful, so replies to an allowed
+// connection get back automatically.
+{
+  // Only an admin can put devices into tag:dev
+  "tagOwners": {
+    "tag:dev": ["autogroup:admin"]
+  },
+
+  "grants": [
+    // Your own devices, like your phone and Mac, can reach each other
+    { "src": ["autogroup:member"], "dst": ["autogroup:self"], "ip": ["*"] },
+
+    // Your devices can reach the dev VM on any port, for SSH and previews
+    { "src": ["autogroup:member"], "dst": ["tag:dev"], "ip": ["*"] }
+
+    // Nothing grants tag:dev access to anything, so the VM can't start
+    // connections to other tailnet devices. Proxmox's firewall can't see
+    // inside the tunnel, so this is the only control on that path.
+  ],
+
+  "ssh": [
+    // Your devices can use Tailscale SSH to log in to the dev VM as "dev"
+    { "action": "accept", "src": ["autogroup:member"], "dst": ["tag:dev"], "users": ["dev"] }
+  ]
+}

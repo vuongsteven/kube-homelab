@@ -17,7 +17,7 @@ Infrastructure around the cluster, done whenever it's useful.
 
 | Lesson | What it teaches |
 |---|---|
-| [Dev VM with Terraform](docs/side-lessons/dev-vm/README.md) | Terraform, cloud-init, Proxmox permissions and firewalls, systemd, Claude Code Remote Control |
+| [Dev VM with Terraform](docs/side-lessons/dev-vm/README.md) | Terraform, cloud-init, Proxmox permissions and firewalls, systemd, Claude Code Remote Control, Tailscale |
 
 ## Layout
 
@@ -27,6 +27,7 @@ docs/side-lessons/   Side lesson write-ups
 hooks/               Build hook that makes the docs site pick up new pages
 kubernetes/          Manifests, one folder per app
 terraform/           Terraform, one folder per project
+tailscale/           Reference copy of the tailnet access policy
 ```
 
 ## The docs site
